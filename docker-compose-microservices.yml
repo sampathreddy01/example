@@ -1,0 +1,92 @@
+version: "3.3"
+services:
+  els-service:
+    image: docker.sapient.video.chat.repo:5000/microservices/eureka-video:1.0
+    container_name: employee-eureka-service 
+    volumes:
+      - ./configuration/log/:/log/
+    ports:
+      - 8761:8761
+    networks:
+      - dealer-interface
+
+  zuul-service:
+    image: docker.sapient.video.chat.repo:5000/microservices/zuul-service:1.0
+    container_name: zuul-service
+    volumes:
+      - ./configuration/log/:/log/
+    ports:
+      - 8900:8900
+    networks:
+      - dealer-interface
+    depends_on:
+      - els-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://els-service:8761/eureka
+  
+  oauth-server:
+    image: docker.sapient.video.chat.repo:5000/microservices/oauth-service:1.0
+    container_name: oauth-service
+    volumes:
+      - ./configuration/log/:/log/
+    ports:
+      - 8086:8086
+    networks:
+      - dealer-interface 
+    depends_on:
+      - els-service
+      - zuul-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://els-service:8761/eureka
+    
+  dealer-dashboard:
+    image: docker.sapient.video.chat.repo:5000/microservices/dealer-dashboard:1.0
+    container_name: dealer-dashboard-service
+    volumes:
+      - ./configuration/log/:/log/
+    ports:
+      - 8082:8082
+      - 5432:5432
+    networks:
+      - dealer-interface
+    depends_on:
+      - els-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://els-service:8761/eureka 
+
+  dealer-backend:
+    image: docker.sapient.video.chat.repo:5000/microservices/dealer-backend:1.0
+    container_name: dealer-backend-service
+    volumes:
+      - ./configuration/log/:/log/
+    ports:
+      - 8083:8083
+    networks:
+      - dealer-interface
+    depends_on:
+      - els-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://els-service:8761/eureka
+
+  logstash:
+     image: docker.elastic.co/logstash/logstash:7.9.2
+     container_name: logstash 
+     volumes:
+       #- ./configuration/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+       #- ./configuration/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+       - ./configuration/log/:/data/
+       - type: bind
+         source: /home/ec2-user/docker/configuration/pipeline/logstash.conf
+         target: /usr/share/logstash/pipeline/logstash.conf
+       - type: bind
+         source: /home/ec2-user/docker/configuration/config/logstash.yml
+         target: /usr/share/logstash/config/logstash.yml
+     ports:
+       - 9600:9600
+       - 5000:5000 
+     networks:
+       - dealer-interface
+   
+
+networks:
+  dealer-interface:
